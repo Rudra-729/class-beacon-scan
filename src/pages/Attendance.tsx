@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Layout from "@/components/Layout";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -107,7 +108,8 @@ export default function AttendancePage() {
   }
 
   return (
-    <Layout>
+    <ProtectedRoute allowedRoles={['professor']}>
+      <Layout>
       <article className="mx-auto max-w-6xl">
         <header className="mb-6">
           <h1 className="text-3xl font-bold">Attendance Records</h1>
@@ -187,5 +189,6 @@ export default function AttendancePage() {
         </div>
       </article>
     </Layout>
+  </ProtectedRoute>
   );
 }

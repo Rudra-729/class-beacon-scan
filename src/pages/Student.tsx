@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import Layout from "@/components/Layout";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
@@ -8,24 +9,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSEO } from "@/hooks/use-seo";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import { isAttendanceOpen } from "@/lib/attendanceWindow";
 import { supabase } from "@/integrations/supabase/client";
 
 export default function StudentPage() {
   useSEO({
-    title: "Student Attendance Check‑in (Face + BLE)",
-    description: "Prototype check-in using camera and BLE proximity with a timed window.",
+    title: "Student Attendance Check‑in",
+    description: "Check-in using camera and BLE proximity verification.",
   });
 
   const { toast } = useToast();
+  const { user, profile } = useAuth();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [blePresent, setBlePresent] = useState(false);
   const [windowOpen, setWindowOpen] = useState(isAttendanceOpen());
   const [subjects, setSubjects] = useState<{id: string, name: string, code: string}[]>([]);
   const [selectedSubject, setSelectedSubject] = useState("");
-  const [studentName, setStudentName] = useState("");
-  const [studentEmail, setStudentEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
@@ -84,35 +85,30 @@ export default function StudentPage() {
     setBlePresent((v) => !v);
   }
 
-  const canCheckIn = cameraReady && blePresent && windowOpen && selectedSubject && studentName.trim();
+  const canCheckIn = cameraReady && blePresent && windowOpen && selectedSubject && user && profile;
 
   async function handleCheckIn() {
-    if (!canCheckIn) return;
+    if (!canCheckIn || !user || !profile) return;
     
     setIsSubmitting(true);
     try {
-      // Generate a simple student ID based on name for prototype
-      const studentId = `student_${studentName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
-      
       const { error } = await supabase
         .from("attendance_records")
         .insert({
-          student_id: studentId,
+          user_id: user.id,
           subject_id: selectedSubject,
-          student_name: studentName.trim(),
-          student_email: studentEmail.trim() || null,
+          student_id: profile.student_id || `temp_${user.id}`,
+          student_name: profile.full_name,
+          student_email: user.email || null,
         });
 
       if (error) throw error;
 
       toast({
         title: "Check-in Successful!",
-        description: `Attendance recorded for ${studentName} in ${subjects.find(s => s.id === selectedSubject)?.name}`,
+        description: `Attendance recorded for ${profile.full_name} in ${subjects.find(s => s.id === selectedSubject)?.name}`,
       });
 
-      // Reset form
-      setStudentName("");
-      setStudentEmail("");
     } catch (error: any) {
       console.error("Error recording attendance:", error);
       toast({
@@ -126,12 +122,13 @@ export default function StudentPage() {
   }
 
   return (
-    <Layout>
-      <article className="mx-auto max-w-2xl">
-        <header className="mb-6">
-          <h1 className="text-3xl font-bold">Student Check‑in</h1>
-          <p className="text-muted-foreground">You can check in only while the attendance window is open.</p>
-        </header>
+    <ProtectedRoute allowedRoles={['student']}>
+      <Layout>
+        <article className="mx-auto max-w-2xl">
+          <header className="mb-6">
+            <h1 className="text-3xl font-bold">Student Check‑in</h1>
+            <p className="text-muted-foreground">Welcome {profile?.full_name}! Check in when the attendance window is open.</p>
+          </header>
 
         <div className="grid gap-6">
           <Card>
@@ -179,29 +176,10 @@ export default function StudentPage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Student Information</CardTitle>
-              <CardDescription>Enter your details for attendance recording.</CardDescription>
+              <CardTitle>Subject Selection</CardTitle>
+              <CardDescription>Choose the subject for which you want to record attendance.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="student-name">Full Name *</Label>
-                <Input
-                  id="student-name"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="Enter your full name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="student-email">Email (optional)</Label>
-                <Input
-                  id="student-email"
-                  type="email"
-                  value={studentEmail}
-                  onChange={(e) => setStudentEmail(e.target.value)}
-                  placeholder="Enter your email"
-                />
-              </div>
               <div className="space-y-2">
                 <Label htmlFor="subject">Subject *</Label>
                 <Select value={selectedSubject} onValueChange={setSelectedSubject}>
@@ -230,7 +208,8 @@ export default function StudentPage() {
                 <li>Attendance window: {windowOpen ? "Open" : "Closed"}</li>
                 <li>Camera: {cameraReady ? "Ready" : "Not ready"}</li>
                 <li>BLE: {blePresent ? "Present" : "Not present"}</li>
-                <li>Student info: {studentName.trim() && selectedSubject ? "Complete" : "Incomplete"}</li>
+                <li>Subject: {selectedSubject ? "Selected" : "Not selected"}</li>
+                <li>Profile: {user && profile ? "Authenticated" : "Not authenticated"}</li>
               </ul>
               <Button disabled={!canCheckIn || isSubmitting} onClick={handleCheckIn}>
                 {isSubmitting ? "Recording..." : canCheckIn ? "Check In" : "Requirements Not Met"}
@@ -240,5 +219,6 @@ export default function StudentPage() {
         </div>
       </article>
     </Layout>
+  </ProtectedRoute>
   );
 }

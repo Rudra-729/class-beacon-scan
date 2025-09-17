@@ -24,6 +24,7 @@ export type Database = {
           student_id: string
           student_name: string
           subject_id: string
+          user_id: string | null
         }
         Insert: {
           attendance_date?: string
@@ -34,6 +35,7 @@ export type Database = {
           student_id: string
           student_name: string
           subject_id: string
+          user_id?: string | null
         }
         Update: {
           attendance_date?: string
@@ -44,6 +46,7 @@ export type Database = {
           student_id?: string
           student_name?: string
           subject_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -54,6 +57,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          branch: string | null
+          contact_info: string | null
+          created_at: string
+          department: string
+          full_name: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          staff_id: string | null
+          student_id: string | null
+          updated_at: string
+          user_id: string
+          username: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          branch?: string | null
+          contact_info?: string | null
+          created_at?: string
+          department: string
+          full_name: string
+          id?: string
+          role: Database["public"]["Enums"]["user_role"]
+          staff_id?: string | null
+          student_id?: string | null
+          updated_at?: string
+          user_id: string
+          username: string
+        }
+        Update: {
+          avatar_url?: string | null
+          branch?: string | null
+          contact_info?: string | null
+          created_at?: string
+          department?: string
+          full_name?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          staff_id?: string | null
+          student_id?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string
+        }
+        Relationships: []
       }
       subjects: {
         Row: {
@@ -84,7 +135,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      user_role: "student" | "professor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -211,6 +262,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      user_role: ["student", "professor"],
+    },
   },
 } as const

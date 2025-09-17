@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Layout from "@/components/Layout";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useSEO } from "@/hooks/use-seo";
@@ -39,7 +40,8 @@ export default function AdminPage() {
   }, []);
 
   return (
-    <Layout>
+    <ProtectedRoute allowedRoles={['professor']}>
+      <Layout>
       <article className="mx-auto max-w-2xl">
         <header className="mb-6">
           <h1 className="text-3xl font-bold">Attendance Window</h1>
@@ -90,5 +92,6 @@ export default function AdminPage() {
         </section>
       </article>
     </Layout>
+  </ProtectedRoute>
   );
 }
