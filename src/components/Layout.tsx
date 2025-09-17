@@ -16,6 +16,9 @@ export default function Layout({ children }: { children: ReactNode }) {
             <NavLink to="/admin" className={({ isActive }) => isActive ? "underline" : "hover:underline"}>
               Admin
             </NavLink>
+            <NavLink to="/attendance" className={({ isActive }) => isActive ? "underline" : "hover:underline"}>
+              Records
+            </NavLink>
           </div>
         </nav>
       </header>

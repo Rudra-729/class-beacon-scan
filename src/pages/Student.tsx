@@ -3,8 +3,13 @@ import Layout from "@/components/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useSEO } from "@/hooks/use-seo";
+import { useToast } from "@/hooks/use-toast";
 import { isAttendanceOpen } from "@/lib/attendanceWindow";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function StudentPage() {
   useSEO({
@@ -12,21 +17,51 @@ export default function StudentPage() {
     description: "Prototype check-in using camera and BLE proximity with a timed window.",
   });
 
+  const { toast } = useToast();
   const [cameraReady, setCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [blePresent, setBlePresent] = useState(false);
   const [windowOpen, setWindowOpen] = useState(isAttendanceOpen());
+  const [subjects, setSubjects] = useState<{id: string, name: string, code: string}[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState("");
+  const [studentName, setStudentName] = useState("");
+  const [studentEmail, setStudentEmail] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     const id = setInterval(() => setWindowOpen(isAttendanceOpen()), 1000);
     const onStorage = () => setWindowOpen(isAttendanceOpen());
     window.addEventListener("storage", onStorage);
+    fetchSubjects();
     return () => {
       clearInterval(id);
       window.removeEventListener("storage", onStorage);
     };
   }, []);
+
+  async function fetchSubjects() {
+    try {
+      const { data, error } = await supabase
+        .from("subjects")
+        .select("id, name, code")
+        .order("name");
+
+      if (error) throw error;
+      
+      setSubjects(data || []);
+      if (data && data.length > 0) {
+        setSelectedSubject(data[0].id);
+      }
+    } catch (error) {
+      console.error("Error fetching subjects:", error);
+      toast({
+        title: "Error",
+        description: "Failed to load subjects. Please refresh the page.",
+        variant: "destructive",
+      });
+    }
+  }
 
   async function requestCamera() {
     setCameraError(null);
@@ -49,10 +84,45 @@ export default function StudentPage() {
     setBlePresent((v) => !v);
   }
 
-  const canCheckIn = cameraReady && blePresent && windowOpen;
+  const canCheckIn = cameraReady && blePresent && windowOpen && selectedSubject && studentName.trim();
 
-  function handleCheckIn() {
-    alert("Checked in (prototype) — would upload face embedding + BLE proximity & timestamp.");
+  async function handleCheckIn() {
+    if (!canCheckIn) return;
+    
+    setIsSubmitting(true);
+    try {
+      // Generate a simple student ID based on name for prototype
+      const studentId = `student_${studentName.toLowerCase().replace(/\s+/g, '_')}_${Date.now()}`;
+      
+      const { error } = await supabase
+        .from("attendance_records")
+        .insert({
+          student_id: studentId,
+          subject_id: selectedSubject,
+          student_name: studentName.trim(),
+          student_email: studentEmail.trim() || null,
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Check-in Successful!",
+        description: `Attendance recorded for ${studentName} in ${subjects.find(s => s.id === selectedSubject)?.name}`,
+      });
+
+      // Reset form
+      setStudentName("");
+      setStudentEmail("");
+    } catch (error: any) {
+      console.error("Error recording attendance:", error);
+      toast({
+        title: "Check-in Failed",
+        description: error.message || "An error occurred while recording attendance.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -109,6 +179,49 @@ export default function StudentPage() {
 
           <Card>
             <CardHeader>
+              <CardTitle>Student Information</CardTitle>
+              <CardDescription>Enter your details for attendance recording.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="student-name">Full Name *</Label>
+                <Input
+                  id="student-name"
+                  value={studentName}
+                  onChange={(e) => setStudentName(e.target.value)}
+                  placeholder="Enter your full name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="student-email">Email (optional)</Label>
+                <Input
+                  id="student-email"
+                  type="email"
+                  value={studentEmail}
+                  onChange={(e) => setStudentEmail(e.target.value)}
+                  placeholder="Enter your email"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="subject">Subject *</Label>
+                <Select value={selectedSubject} onValueChange={setSelectedSubject}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select subject" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {subjects.map((subject) => (
+                      <SelectItem key={subject.id} value={subject.id}>
+                        {subject.code} - {subject.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle>Check‑in</CardTitle>
               <CardDescription>All requirements must be satisfied to enable check‑in.</CardDescription>
             </CardHeader>
@@ -117,9 +230,10 @@ export default function StudentPage() {
                 <li>Attendance window: {windowOpen ? "Open" : "Closed"}</li>
                 <li>Camera: {cameraReady ? "Ready" : "Not ready"}</li>
                 <li>BLE: {blePresent ? "Present" : "Not present"}</li>
+                <li>Student info: {studentName.trim() && selectedSubject ? "Complete" : "Incomplete"}</li>
               </ul>
-              <Button disabled={!canCheckIn} onClick={handleCheckIn}>
-                {canCheckIn ? "Check In" : "Requirements Not Met"}
+              <Button disabled={!canCheckIn || isSubmitting} onClick={handleCheckIn}>
+                {isSubmitting ? "Recording..." : canCheckIn ? "Check In" : "Requirements Not Met"}
               </Button>
             </CardContent>
           </Card>
